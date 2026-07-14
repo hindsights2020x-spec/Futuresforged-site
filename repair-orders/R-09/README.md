@@ -16,6 +16,7 @@ Investigation`, from Tom). Prepared 2026-07-14.
 | `COPIER_ROUTING_MAP.md` | Assembled function → route mapping for the whole client copier (proves every function's routing; flags server-contract unknowns as OQ-n). |
 | `SOP_copier_trade_readiness.md` | Single trade-readiness procedure (verify → apply Fix A → verify → go/no-go) + Open-Questions register for anything the other files don't answer. |
 | `SOP_bot_shutdown.md` | Safe on-box shutdown runbook (flatten → confirm flat → stop copier then bot → verify down). |
+| `COWORK_HANDOFF_activate_live_trading.md` | End-to-end on-box handoff to finish R-09 and activate live trading (verify → Fix A → SIM verify → go-live → report). |
 
 ## Issue 1 — manual trade hitting 2 MNQ (FIX)
 - **Client (done, in `client_chart_studio.html`):** `placeOrder()` now sends `manual:true` alongside the
