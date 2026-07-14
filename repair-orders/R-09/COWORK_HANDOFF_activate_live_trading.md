@@ -1,4 +1,6 @@
-# COWORK HANDOFF — Activate Live Trading on the Copier (R-09)
+# Handoff 41 — Activate Live Trading on the Copier (R-09)
+
+**Cowork handoff.** Numbered sequel to Handoff 39/40 (Enable/Live Trading). Closes repair order R-09.
 
 **To:** the Cowork / Claude Code session running **on the ff-bot box** (`/home/tom/futuresforged-bot/`).
 **From:** off-box repo session (Google-repo access only, no reach to the live box).
