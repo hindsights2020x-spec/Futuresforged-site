@@ -15,6 +15,7 @@ Investigation`, from Tom). Prepared 2026-07-14.
 | `COWORK_verify_routing.md` | On-box (Cowork) steps to confirm which service sizes manual orders + live before/after test. |
 | `COPIER_ROUTING_MAP.md` | Assembled function → route mapping for the whole client copier (proves every function's routing; flags server-contract unknowns as OQ-n). |
 | `SOP_copier_trade_readiness.md` | Single trade-readiness procedure (verify → apply Fix A → verify → go/no-go) + Open-Questions register for anything the other files don't answer. |
+| `SOP_bot_shutdown.md` | Safe on-box shutdown runbook (flatten → confirm flat → stop copier then bot → verify down). |
 
 ## Issue 1 — manual trade hitting 2 MNQ (FIX)
 - **Client (done, in `client_chart_studio.html`):** `placeOrder()` now sends `manual:true` alongside the
