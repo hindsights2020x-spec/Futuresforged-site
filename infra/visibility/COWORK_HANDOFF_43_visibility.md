@@ -20,7 +20,8 @@ folder `infra/visibility/` (scripts + full SOPs). Do the steps **in order**; 1+2
 - [ ] Bot builds from git; `git log` shows the baseline; a test deploy restarts cleanly.
 
 ## Step 2 — Supabase health heartbeat  → `SOP_02_heartbeat.md`
-1. Apply `bot_health.sql` (SQL editor / CLI / MCP `apply_migration`).
+1. ~~Apply `bot_health.sql`~~ ✅ **already applied** to project `osxwkgmjwtdyvqwlfyre` (2026-07-16) — the
+   `bot_health` table + `bot_health_latest` view exist. Skip to installing the writer.
 2. Install `heartbeat.py`; create `/etc/ff/heartbeat.env` (chmod 600) with `SB_URL` + **service-role** `SB_KEY`.
 3. Smoke-test once, then install + enable `ff-heartbeat.timer` (every 15s).
 4. From off-box, `GET /rest/v1/bot_health_latest` with the publishable key.

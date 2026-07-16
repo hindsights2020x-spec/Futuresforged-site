@@ -6,10 +6,11 @@ you already have (same as bars/positions), so no new infrastructure.
 
 **Run on the ff-bot box + once in Supabase.** ~10 min.
 
-## 1. Create the table
-Apply `bot_health.sql` (this folder) — Supabase **SQL editor**, or CLI (`supabase db execute`), or
-MCP `apply_migration`. It's additive/idempotent: table + indexes + a `bot_health_latest` view + a read-only
-RLS policy for the anon/publishable key.
+## 1. Create the table  ✅ ALREADY DONE
+Applied to the **FuturesForged** Supabase project (`osxwkgmjwtdyvqwlfyre`) on 2026-07-16 via migration
+`bot_health_visibility` — `public.bot_health` + indexes + `bot_health_latest` view + read-only RLS policy
+exist now. `bot_health.sql` (this folder) is the idempotent source if you ever need to re-apply/rebuild.
+**Skip to Step 2.**
 
 ## 2. Install the writer + secrets on the box
 ```bash
