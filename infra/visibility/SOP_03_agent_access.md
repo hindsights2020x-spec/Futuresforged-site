@@ -24,6 +24,14 @@ sudo visudo -cf /etc/sudoers.d/ff-agent          # MUST print "parsed OK"
 An agent session on a trusted tailnet device can now run, e.g.:
 `ssh ffagent@ff-bot 'sudo bash /home/tom/futuresforged-bot/r09_verify.sh'`.
 
+## Option C — `bot_commands` Supabase command bus (preferred, if confirmed) → `bot_commands_bus.md`
+A `public.bot_commands` queue already exists (RLS-gated to the two owner emails via `is_ff_admin()`). If the
+live bot **polls and dispatches it via a strict allowlist**, an off-box admin agent can enqueue
+`restart_copier` / `run_verify` / `redeploy` rows with **no SSH and full audit** — cleaner than Option A.
+It's **not** on Realtime, so consumption is by polling and is **unconfirmed off-box**; verify on-box first:
+`grep -rn "bot_commands" /home/tom/futuresforged-bot/*.py`. See `bot_commands_bus.md` for the safe design
+(allowlist only, never order-placing) and usage. Until confirmed + allowlisted, use Option A.
+
 ## Option B — self-hosted Claude Code runner on the box
 Register the box as a self-hosted CCR environment/pool so "on-box Cowork" is always one trigger away from
 the web UI — the agent runs *in* the box's context (full repo + shell), no SSH round-trip. Best when you

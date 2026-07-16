@@ -28,10 +28,14 @@ folder `infra/visibility/` (scripts + full SOPs). Do the steps **in order**; 1+2
 - [ ] Off-box query returns live up/down + `git_sha` + open-position count + `fixes_applied`.
 
 ## Step 3 — Guarded agent access (optional)  → `SOP_03_agent_access.md`
+**First, check for the SSH-free path** (`bot_commands_bus.md`): a `bot_commands` queue already exists,
+owner-gated. Confirm whether the bot polls it — `grep -rn "bot_commands" /home/tom/futuresforged-bot/*.py`.
+If it polls + dispatches a fixed allowlist, prefer **Option C** (enqueue command rows, no SSH). Otherwise:
 1. Create restricted `ffagent` user; install `ff-agent-sudoers.sample` → `/etc/sudoers.d/ff-agent`
    (swap in real unit names); `visudo -cf` must pass.
 2. Gate SSH to the tailnet + `ffagent` via Tailscale ACLs. (Or register the box as a self-hosted CCR runner.)
-- [ ] A trusted tailnet device can `ssh ffagent@ff-bot 'sudo bash .../r09_verify.sh'` and nothing else.
+- [ ] Either: `bot_commands` consumption confirmed + allowlist verified (Option C), **or** a trusted tailnet
+  device can `ssh ffagent@ff-bot 'sudo bash .../r09_verify.sh'` and nothing else (Option A).
 
 ---
 
