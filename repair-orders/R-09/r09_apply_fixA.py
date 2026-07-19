@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
 """R-09 Fix A patcher — manual-order sizing bypass.
 
+⛔ DO NOT USE (2026-07-19). On-box review found manual orders go through
+copier_engine.py /api/place_order -> copy_trade() and NEVER call get_contracts().
+The only `instr, pv, tp_c, run_c = get_contracts(` sites are bot_engine.py:1903/1976
+in the AUTONOMOUS SIGNAL LOOP — patching them injects an `order` NameError that breaks
+live signal trading. The real fix belongs in copy_trade(). Kept for history only.
+See COWORK_HANDOFF_42_fixA.md (STOP banner).
+"""
+_DEPRECATED_DOC = """R-09 Fix A patcher — manual-order sizing bypass.
+
 Idempotent, DRY-RUN by default, writes a timestamped .bak before any change.
 Inserts a bypass immediately before a `instr, pv, tp_c, run_c = get_contracts(...)`
 call site so manual orders execute the exact `contracts` count with no runner leg.

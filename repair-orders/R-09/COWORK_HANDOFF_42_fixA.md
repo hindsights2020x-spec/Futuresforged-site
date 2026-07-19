@@ -10,6 +10,17 @@ shell. Cannot be done off-box (no reach to the live engine).
 **Client is already done:** Chart Studio POSTs `manual:true` + `strategy:'MANUAL'` + `contracts:<n>` to
 `:7332/api/place_order`. This handoff is purely the **server** half.
 
+> ⛔ **STOP — 2026-07-19 on-box finding supersedes the method below.** Reading the live code shows the
+> manual path is `copier_engine.py` `/api/place_order` → `copy_trade(...)`, which passes `contracts`
+> **verbatim** and **never calls `get_contracts()`**. The only `get_contracts()` call sites are
+> `bot_engine.py:1903/1976` in the **autonomous signal loop**. Therefore:
+> - **DO NOT run `r09_apply_fixA.py`.** Its pattern matches those signal-loop lines; the inserted `order.get(...)`
+>   references a variable that doesn't exist there → `NameError` that breaks live signal trading.
+> - The real 2-MNQ source (if any) is inside **`copy_trade()`** — fix belongs there, pending its review.
+> - Also: the copier already reads `limit_price`/`stop_price`/`trail_pts`, so LMT/STP just need the client to send them.
+>
+> _The 2A/2B methods below are retained for history only and are NOT the current plan._
+
 > Two ways to apply below — **A) the repo patcher** (preferred, idempotent, auto-backup) or **B) a manual
 > edit** (fully inline; use if the repo isn't checked out on the box). Do one, not both.
 
