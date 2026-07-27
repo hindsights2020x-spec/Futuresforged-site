@@ -19,8 +19,11 @@ Prepared 2026-07-27.
 ## Actions Tom approved — outcomes
 - ✅ **Supabase signal-route smoke test** — done. DB-side accept/deny→route path proven; `signal_routes` back
   to 0 rows. Client-Realtime + copier-exec E2E still needs an on-box subscriber.
-- ⛔ **Vercel download/site verification** — blocked: token lacks access to the FF Vercel projects. Runbook provided.
-- ⛔ **Drive folder archive** — blocked: connector can't rename. Manual steps provided.
+- ✅ **Download/site verification** — done **via GitHub** (Vercel token had no access). Corrected R-08's premise:
+  the apex `futuresforged.com` is **GitHub Pages** (no download link/`.exe` → that's the 404), and the app's
+  canonical Vercel deploy is in Tom's personal account. See the ADDENDUM in `R-08_STATUS.md`.
+- ⛔ **Drive folder archive** — still can't execute (no rename tool; rclone/creds absent from sandbox). Manual
+  **and rclone** commands provided in `drive_archive_runbook.md`.
 
 ## Headline (refreshed)
 - **Download still broken** (`futuresforged.com/FuturesForged.exe`): 404 on Jul 1 → 403 now. Root cause

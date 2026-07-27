@@ -100,5 +100,38 @@ can't see the project). If Deployment Protection is on, it may be blocking legit
 
 ---
 
-*No orders were placed. No Supabase rows persist from this session. No Drive or Vercel state was mutated
-(both were blocked by connector limits). Operator bot files were not touched.*
+## ADDENDUM 2026-07-27 — Vercel action unblocked via GitHub (source repos read)
+
+Tom pointed out the sites are reachable via GitHub. Added `hindsights2020x-spec/futuresforged` and
+`futuresforged-client` to the session and read the actual source. This **corrects R-08's "everything is
+Vercel" premise**:
+
+- **`futuresforged.com` (apex marketing) is GitHub Pages, not Vercel.** Repo `futuresforged` = a single static
+  `index.html` + `CNAME futuresforged.com`. It contains **no download link and no `.exe`** — so the download
+  404 is simply because the binary and a download button were never added here (independent of RO#07). Stripe
+  CTAs are still `https://buy.stripe.com/YOUR_STARTER_LINK` / `YOUR_PRO_LINK` **placeholders** → Stripe still
+  not live (confirms R-08 §7.6 from source, not just the 1-row table).
+- **`app.futuresforged.com` (client app):** repo `futuresforged-client` = single-file static app
+  (`index.html` ~111 KB + `studio.html`), `CNAME app.futuresforged.com`, a GitHub Pages deploy workflow
+  (`.github/workflows/pages.yml`, on push to `master`) **and** a `vercel.json`. Its README says the **live**
+  source is currently `ffpreview.vercel.app` and this repo is a *recovery backstop* "NOT yet the Vercel-linked
+  canonical repo" — the Vercel project "lives in Tom's personal Vercel or the Cowork sandbox" (the MCP account
+  "has no teams and cannot see it"). So the transition Vercel→GitHub-Pages is mid-flight.
+- **`/portal` and `/pricing` 404 by design** — the client is a single-file app with "no multi-page tree," per
+  its README. R-08's "unverified portal/pricing" flags are explained: those routes don't exist, they aren't missing pages.
+- **What GitHub still can't tell us:** whether Vercel **Deployment Protection** is gating `app.` — that's a
+  dashboard setting in Tom's personal Vercel account, not in the repo. Still a Tom check (runbook §0). The
+  uniform 403 I saw earlier was my sandbox egress, not real site state.
+
+**Net for the download fix:** it's now concrete — add a download button to the GitHub Pages apex repo pointing
+at a hosted binary, and host the binary (RO#07 R2 / `get.futuresforged.com`, or in-repo). See the updated
+`vercel_download_fix_runbook.md`. The binary itself (`D:\TOM\...\dist\FuturesForged.exe`, 14.7 MB) is still
+local-only, so the host step needs Tom or the box.
+
+Drive archive: rclone isn't installed in this sandbox and I have no Drive credentials here, so I still can't
+execute it — `drive_archive_runbook.md` now includes the exact rclone commands for Tom's configured remote.
+
+---
+
+*No orders were placed. No Supabase rows persist from this session. No Drive or Vercel/GitHub-Pages site state
+was mutated. Operator bot files were not touched. The two added repos were read-only.*
