@@ -90,7 +90,7 @@ can't see the project). If Deployment Protection is on, it may be blocking legit
 
 | # | Item | Owner | Artifact |
 |---|---|---|---|
-| 1 | Fix the retail download (host decision: execute RO#07 `get.` R2, or route `futuresforged.com/FuturesForged.exe` to the binary) | Tom + Vercel | `vercel_download_fix_runbook.md` |
+| 1 | Fix the retail download — **button wired in [`futuresforged` PR #1](https://github.com/hindsights2020x-spec/futuresforged/pull/1)**; remaining: host the binary (commit the exe in-repo, or execute RO#07 `get.` R2) | Tom (binary) | `vercel_download_fix_runbook.md` §1A |
 | 1b | Confirm whether Vercel Deployment Protection is blocking `app.futuresforged.com` for customers | Tom | `vercel_download_fix_runbook.md` §0 |
 | 2 | Rebuild + NT8 micro-test the copier, then re-upload the exe once (1) has a home | Tom (box + NT8) | R-08 §7.2 / `FuturesForged-HANDOFF.md` |
 | 3 | Prove signal route **client Realtime + copier exec** E2E (DB side done here) | On-box (copier in SIM) | `supabase_signal_route_smoke_test.sql` §"on-box E2E" |
@@ -127,6 +127,10 @@ Vercel" premise**:
 at a hosted binary, and host the binary (RO#07 R2 / `get.futuresforged.com`, or in-repo). See the updated
 `vercel_download_fix_runbook.md`. The binary itself (`D:\TOM\...\dist\FuturesForged.exe`, 14.7 MB) is still
 local-only, so the host step needs Tom or the box.
+
+**DONE (2026-07-28):** the download button is wired — **[`futuresforged` PR #1](https://github.com/hindsights2020x-spec/futuresforged/pull/1)**
+adds a "Download for Windows" hero CTA → `/FuturesForged.exe`. It 404s until Tom hosts the binary (commit the
+exe to the Pages repo root, or repoint the href at `get.futuresforged.com` after RO#07).
 
 Drive archive: rclone isn't installed in this sandbox and I have no Drive credentials here, so I still can't
 execute it — `drive_archive_runbook.md` now includes the exact rclone commands for Tom's configured remote.
