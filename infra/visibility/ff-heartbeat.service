@@ -1,0 +1,15 @@
+[Unit]
+Description=FF bot health heartbeat (writes to Supabase bot_health)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=tom
+# Secrets live here, NOT in git. Create /etc/ff/heartbeat.env (chmod 600) with:
+#   SB_URL=https://osxwkgmjwtdyvqwlfyre.supabase.co
+#   SB_KEY=<supabase service-role key>
+#   BOT_DIR=/home/tom/futuresforged-bot
+#   FIXES_APPLIED=R-09-FixA
+EnvironmentFile=/etc/ff/heartbeat.env
+ExecStart=/usr/bin/python3 /home/tom/futuresforged-bot/heartbeat.py

@@ -1,3 +1,13 @@
+> ⛔ **SUPERSEDED 2026-07-19 — read this first.** Reading the live `copier_engine.py` disproved this
+> order's core premise. Manual orders go `/api/place_order` → `copy_trade()` → `execute_order()`; they
+> place `contracts` **verbatim** and **never call `get_contracts()`** (the only `get_contracts()` sites are
+> `bot_engine.py`'s autonomous signal loop, so there is **no 2-contract minimum** on the manual path).
+> **Do NOT apply R-09 Fix A / `r09_apply_fixA.py`** — it targets that signal loop and would break live
+> signal trading. The real bug is an **order-vocabulary mismatch** (Chart Studio sends `BUY`/`MKT`; the
+> copier expects `LONG`/`Market`), which made manual orders fail silently — and a latent `BUY→SELL` trap.
+> Durable fix: branch **`claude/copier-order-normalization`** in the `futuresforged-bot` repo
+> (`COPIER_ORDER_NORMALIZATION.md`). Everything below is retained for history only.
+
 # R-09 — Chart Studio Manual Trade Bypass + Price Lag — STATUS
 **Date:** 2026-07-14 **By:** Claude Code (off-box — Google Drive access only, NOT run on the ff-bot server)
 **Companion to:** `2026-07-13 R-09 Chart Studio Manual Trade Fix and Price Lag Investigation`

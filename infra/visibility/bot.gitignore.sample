@@ -1,0 +1,19 @@
+# FF bot repo .gitignore — copy to the bot repo root as `.gitignore`.
+# Rule #1: source is versioned; secrets and runtime state are NOT.
+*.env
+.env
+*.key
+*.pem
+secrets/
+credentials*.json
+__pycache__/
+*.pyc
+*.bak
+*.bak_*
+*.log
+logs/
+data/
+*.sqlite
+*.db
+backups/
+ff-bot-backup-*.tgz
