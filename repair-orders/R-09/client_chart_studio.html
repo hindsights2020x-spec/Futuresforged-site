@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FF · Chart Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+:root{
+  --bg:#060d14; --bg2:#0a1a26; --accent:#00d4ff;
+  --green:#22d08a; --red:#ff4c6e; --text:#c8dae8;
+  --muted:#4a7a9b; --border:#0e2a3a;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:'Share Tech Mono',monospace; font-size:12px;
+  min-height:100vh; padding:10px;
+}
+h1,h2,h3,.num{font-family:'Rajdhani',sans-serif}
+
+#topbar{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:10px; flex-wrap:wrap; margin-bottom:10px;
+  padding:8px 12px; background:var(--bg2);
+  border:1px solid var(--border); border-radius:6px;
+}
+#topbar .brand{
+  font-family:'Rajdhani',sans-serif; font-weight:700; font-size:17px;
+  letter-spacing:2px; color:var(--accent);
+}
+#topbar .brand span{color:var(--text);font-weight:500}
+#srv{
+  font-size:10px; letter-spacing:1px; padding:3px 8px;
+  border-radius:3px; border:1px solid var(--border); color:var(--muted);
+}
+#srv.online{color:var(--green); border-color:var(--green)}
+#srv.offline{color:var(--red); border-color:var(--red)}
+#toggles{display:flex; gap:6px; flex-wrap:wrap}
+#toggles button{
+  background:transparent; border:1px solid var(--border); color:var(--muted);
+  font-family:'Share Tech Mono',monospace; font-size:10px;
+  letter-spacing:1px; padding:4px 9px; border-radius:3px; cursor:pointer;
+  transition:all .15s;
+}
+#toggles button.on{color:var(--accent); border-color:var(--accent); background:rgba(0,212,255,.07)}
+#toggles button:hover{border-color:var(--accent)}
+
+#grid{display:flex; gap:10px; align-items:flex-start}
+#col-left{flex:1; min-width:0; display:flex; flex-direction:column; gap:10px}
+#col-right{width:210px; flex:0 0 210px; display:flex; flex-direction:column; gap:10px}
+.col{min-height:60px}
+
+.panel{
+  background:var(--bg2); border:1px solid var(--border); border-radius:6px;
+  position:relative; overflow:hidden;
+}
+.panel::before{
+  content:''; position:absolute; top:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+}
+.panel.hidden{display:none}
+.panel.dragging{opacity:.4; border:1px dashed var(--accent)}
+.ph{
+  display:flex; align-items:center; gap:7px;
+  padding:7px 10px; cursor:grab; user-select:none;
+  border-bottom:1px solid var(--border);
+  font-family:'Rajdhani',sans-serif; font-weight:600; font-size:12px;
+  letter-spacing:2px; color:var(--accent); text-transform:uppercase;
+}
+.ph .right{margin-left:auto; font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:1px; color:var(--muted)}
+.ph:active{cursor:grabbing}
+.ph .grip{color:var(--muted); font-size:11px}
+.pb{padding:10px}
+
+/* ---------- Chart ---------- */
+#chart-host{position:relative}
+#lwc-main{width:100%; height:340px}
+#osc-area{display:flex; flex-direction:column; gap:6px; margin-top:6px}
+.osc{width:100%; height:120px; position:relative}
+.osc .osc-lbl{position:absolute; top:3px; left:6px; z-index:3; font-size:9px; letter-spacing:1.5px; color:var(--muted)}
+#chart-msg{
+  position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+  background:rgba(6,13,20,.85); color:var(--red); font-size:12px; letter-spacing:2px; z-index:5;
+}
+#chart-msg.show{display:flex}
+
+/* ---------- Order entry ---------- */
+.lbl{font-size:9px; letter-spacing:1.5px; color:var(--muted); margin:8px 0 4px}
+.lbl:first-child{margin-top:0}
+select,input[type=number]{
+  width:100%; background:var(--bg); border:1px solid var(--border);
+  color:var(--text); font-family:'Share Tech Mono',monospace; font-size:12px;
+  padding:6px; border-radius:3px; outline:none;
+}
+select:focus,input:focus{border-color:var(--accent)}
+.stepper{display:flex; gap:5px}
+.stepper button{
+  width:30px; background:var(--bg); border:1px solid var(--border);
+  color:var(--accent); font-size:14px; cursor:pointer; border-radius:3px;
+}
+.stepper button:hover{border-color:var(--accent)}
+.stepper input{text-align:center}
+.otype{display:flex; gap:5px}
+.otype button{
+  flex:1; background:var(--bg); border:1px solid var(--border); color:var(--muted);
+  font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:1px;
+  padding:5px 0; cursor:pointer; border-radius:3px;
+}
+.otype button.sel{color:var(--accent); border-color:var(--accent); background:rgba(0,212,255,.07)}
+.bs{display:flex; gap:6px; margin-top:10px}
+.bs button{
+  flex:1; padding:11px 0; border:none; border-radius:4px; cursor:pointer;
+  font-family:'Rajdhani',sans-serif; font-weight:700; font-size:15px; letter-spacing:2px;
+}
+#btn-buy{background:rgba(34,208,138,.15); color:var(--green); border:1px solid var(--green)}
+#btn-buy:hover{background:rgba(34,208,138,.3)}
+#btn-sell{background:rgba(255,76,110,.15); color:var(--red); border:1px solid var(--red)}
+#btn-sell:hover{background:rgba(255,76,110,.3)}
+#entry-msg{margin-top:8px; font-size:10px; min-height:14px; letter-spacing:1px}
+#entry-msg.ok{color:var(--green)} #entry-msg.err{color:var(--red)}
+
+/* ---------- Position ---------- */
+.kv{display:flex; justify-content:space-between; padding:3px 0; font-size:11px}
+.kv .k{color:var(--muted); letter-spacing:1px}
+.kv .v{font-family:'Rajdhani',sans-serif; font-weight:600; font-size:13px}
+.long{color:var(--green)} .short{color:var(--red)}
+#btn-flatten{
+  width:100%; margin-top:9px; padding:8px 0; cursor:pointer;
+  background:rgba(255,76,110,.12); border:1px solid var(--red); color:var(--red);
+  font-family:'Rajdhani',sans-serif; font-weight:700; letter-spacing:2px; font-size:12px;
+  border-radius:4px;
+}
+#btn-flatten:hover{background:rgba(255,76,110,.3)}
+.offline-note{color:var(--red); font-size:10px; letter-spacing:1px; text-align:center; padding:8px 0}
+
+#pnl-total{font-family:'Rajdhani',sans-serif; font-weight:700; font-size:24px; text-align:center; padding:4px 0}
+
+#history-tbl{width:100%; border-collapse:collapse}
+#history-tbl th{
+  font-size:9px; letter-spacing:1.5px; color:var(--muted); text-align:left;
+  padding:3px 6px; border-bottom:1px solid var(--border); font-weight:normal;
+}
+#history-tbl td{padding:3px 6px; font-size:11px; border-bottom:1px solid rgba(14,42,58,.5)}
+.st-filled{color:var(--green)} .st-rejected{color:var(--red)} .st-other{color:var(--muted)}
+
+#l2-wrap{font-size:11px}
+.l2row{display:flex; align-items:center; height:18px; gap:6px}
+.l2row .px{width:72px; text-align:center; color:var(--text); font-family:'Rajdhani',sans-serif; font-weight:600}
+.l2row.cur .px{color:var(--accent); background:rgba(0,212,255,.1); border-radius:2px}
+.l2side{flex:1; position:relative; height:14px}
+.l2bar{position:absolute; top:0; bottom:0; border-radius:2px; opacity:.35}
+.l2bar.ask{right:0; background:var(--red)}
+.l2bar.bid{left:0; background:var(--green)}
+.l2sz{position:absolute; top:0; font-size:10px; line-height:14px}
+.l2sz.ask{right:4px; color:var(--red)}
+.l2sz.bid{left:4px; color:var(--green)}
+
+.ind-list{display:flex; flex-direction:column; gap:5px}
+.ind-list button{
+  display:flex; justify-content:space-between; align-items:center;
+  background:var(--bg); border:1px solid var(--border); color:var(--muted);
+  font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:1px;
+  padding:6px 9px; cursor:pointer; border-radius:3px; text-align:left;
+}
+.ind-list button.on{color:var(--accent); border-color:var(--accent); background:rgba(0,212,255,.07)}
+.ind-list button .swatch{width:10px; height:10px; border-radius:2px; opacity:.85}
+#ind-msg{margin-top:6px; font-size:9px; color:var(--muted); min-height:12px}
+</style>
+<script>window._BOT_TOKEN="";</script></head>
+<body>
+
+<div id="topbar">
+  <div class="brand">FUTURES<span>FORGED</span> · CHART STUDIO</div>
+  <div id="srv">CHECKING…</div>
+  <div id="toggles"></div>
+</div>
+
+<div id="grid">
+  <div class="col" id="col-left">
+
+    <div class="panel" id="panel-chart" data-id="chart">
+      <div class="ph"><span class="grip">⠿</span>📈 Chart<span class="right" id="chart-sym">NQ · 5m · RITHMIC</span></div>
+      <div class="pb">
+        <div id="chart-host">
+          <div id="lwc-main"></div>
+          <div id="osc-area"></div>
+          <div id="chart-msg">SERVER OFFLINE</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-history" data-id="history">
+      <div class="ph"><span class="grip">⠿</span>📋 Order History</div>
+      <div class="pb">
+        <table id="history-tbl">
+          <thead><tr><th>TIME</th><th>DIR</th><th>FILL PRICE</th><th>STATUS</th></tr></thead>
+          <tbody id="history-body"><tr><td colspan="4" class="st-other">—</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-l2" data-id="l2">
+      <div class="ph"><span class="grip">⠿</span>⚡ Order Flow L2</div>
+      <div class="pb"><div id="l2-wrap"><div class="offline-note" id="l2-note">WAITING FOR DATA…</div></div></div>
+    </div>
+
+  </div>
+  <div class="col" id="col-right">
+
+    <div class="panel" id="panel-entry" data-id="entry">
+      <div class="ph"><span class="grip">⠿</span>⚡ Order Entry</div>
+      <div class="pb">
+        <div class="lbl">ACCOUNT / ROUTE</div>
+        <select id="route"><option value="">— select copier group —</option></select>
+        <div class="lbl">INSTRUMENT</div>
+        <select id="instrument">
+          <option>NQ</option><option>ES</option><option>MNQ</option><option>MES</option>
+        </select>
+        <div class="lbl">CONTRACTS</div>
+        <div class="stepper">
+          <button id="qty-dn">−</button>
+          <input type="number" id="qty" value="1" min="1">
+          <button id="qty-up">+</button>
+        </div>
+        <div class="lbl">ORDER TYPE</div>
+        <div class="otype">
+          <button class="sel" data-ot="MKT">MKT</button>
+          <button data-ot="LMT">LMT</button>
+          <button data-ot="STP">STP</button>
+        </div>
+        <div class="bs">
+          <button id="btn-buy">▲ BUY</button>
+          <button id="btn-sell">▼ SELL</button>
+        </div>
+        <div id="entry-msg"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-position" data-id="position">
+      <div class="ph"><span class="grip">⠿</span>📊 Position</div>
+      <div class="pb" id="position-body">
+        <div class="offline-note">SERVER OFFLINE</div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-pnl" data-id="pnl">
+      <div class="ph"><span class="grip">⠿</span>💰 Session P&amp;L</div>
+      <div class="pb" id="pnl-body">
+        <div class="offline-note">SERVER OFFLINE</div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-indicators" data-id="indicators">
+      <div class="ph"><span class="grip">⠿</span>💡 Indicators</div>
+      <div class="pb">
+        <div class="ind-list" id="ind-list"></div>
+        <div id="ind-msg"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+'use strict';
+/* =========================================================
+   FF Chart Studio — Handoff #29 (Rithmic edition)
+   Real-time chart + indicators sourced from copier_server's
+   Rithmic feed. No third-party delayed data.
+   ========================================================= */
+/* ---------- Endpoint bases ----------
+   Per Handoff #29 live wiring the services are split:
+     COPIER_BASE  (:7332) — /api/bars, /api/state, /api/place_order, /api/emergency  (no token)
+     ORDERFLOW_BASE (:7331) — /api/book  (L2 / order flow; on the bot, token-gated)
+   NOTE: /api/orderflow_state does NOT exist on the bot — it 404s with a valid token;
+   the token-less 401 from the bot's blanket /api/* auth gate just masks that 404.
+   /api/book is the real L2 source. EVERY ORDERFLOW_BASE call must go through botFetch
+   (below), which attaches the bot session token. To later make the copier a single
+   front-door (it proxies /api/book), set ORDERFLOW_BASE = COPIER_BASE. */
+// Host-relative bases (RO#03): the page is served from the bot (:7331), so derive
+// the host from window.location instead of hard-coding 'localhost'. Hard-coded
+// localhost only works when reached via localhost/SSH-tunnel; over the tailnet IP
+// or ff-bot.futuresforged.com it would resolve to the CLIENT's machine and every
+// fetch (incl. L2) would fail silently. ORDERFLOW_BASE is same-origin as /studio;
+// COPIER_BASE is a different port on the same host.
+const ORDERFLOW_BASE = location.origin;                               // :7331 (serves this page)
+const COPIER_BASE    = `${location.protocol}//${location.hostname}:7332`;
+const API = COPIER_BASE;            // back-compat alias for copier endpoints
+// :7331 (ORDERFLOW_BASE) gates every /api/* with the bot session token, injected
+// into the served page as window._BOT_TOKEN. Attach it on bot-side fetches.
+const BOT_TOK = window._BOT_TOKEN || '';
+const botFetch = (path, opts={}) => fetch(ORDERFLOW_BASE + path, {
+  ...opts, headers: { ...(opts.headers || {}), 'X-Bot-Token': BOT_TOK }
+});
+const BOOK_SYM = { MNQ:'NQ', MES:'ES' };   // micros track their full-size book
+const LS_KEY = 'ff_chart_studio_layout';
+const INTERVAL = '1';                 // minutes
+const POLL_BARS_MS = 1000;            // chart refresh cadence
+const ROOT_BY_INSTRUMENT = { NQ:'NQ', ES:'ES', MNQ:'NQ', MES:'ES' };
+
+const PANELS = [
+  {id:'chart',title:'CHART'},{id:'history',title:'HISTORY'},{id:'l2',title:'L2'},
+  {id:'entry',title:'ENTRY'},{id:'position',title:'POSITION'},{id:'pnl',title:'P&L'},
+  {id:'indicators',title:'INDICATORS'},
+];
+const DEFAULT_LAYOUT = {
+  'col-left':['chart','history','l2'],
+  'col-right':['entry','position','pnl','indicators'],
+  hidden:[]
+};
+
+/* ---------- Layout persistence ---------- */
+function loadLayout(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(!raw) return structuredClone(DEFAULT_LAYOUT);
+    const l = JSON.parse(raw);
+    if(!Array.isArray(l['col-left'])||!Array.isArray(l['col-right'])) throw 0;
+    const all = [...l['col-left'],...l['col-right']];
+    for(const p of PANELS){ if(!all.includes(p.id)) l['col-right'].push(p.id); }
+    l.hidden = Array.isArray(l.hidden)?l.hidden:[];
+    return l;
+  }catch(e){ return structuredClone(DEFAULT_LAYOUT); }
+}
+function saveLayout(){
+  const layout = {
+    'col-left':[...document.getElementById('col-left').children].map(p=>p.dataset.id),
+    'col-right':[...document.getElementById('col-right').children].map(p=>p.dataset.id),
+    hidden:PANELS.filter(p=>document.getElementById('panel-'+p.id).classList.contains('hidden')).map(p=>p.id)
+  };
+  try{ localStorage.setItem(LS_KEY,JSON.stringify(layout)); }catch(e){}
+}
+(function applyLayout(){
+  const layout = loadLayout();
+  for(const colId of ['col-left','col-right']){
+    const col = document.getElementById(colId);
+    for(const pid of layout[colId]){ const el=document.getElementById('panel-'+pid); if(el) col.appendChild(el); }
+  }
+  for(const pid of layout.hidden){ const el=document.getElementById('panel-'+pid); if(el) el.classList.add('hidden'); }
+})();
+
+/* ---------- Toggle bar ---------- */
+const togglesEl = document.getElementById('toggles');
+for(const p of PANELS){
+  const btn = document.createElement('button');
+  btn.textContent = p.title;
+  const panel = document.getElementById('panel-'+p.id);
+  if(!panel.classList.contains('hidden')) btn.classList.add('on');
+  btn.addEventListener('click', ()=>{
+    panel.classList.toggle('hidden');
+    btn.classList.toggle('on');
+    saveLayout();
+    if(p.id==='chart' && !panel.classList.contains('hidden')) syncChartSize();
+  });
+  togglesEl.appendChild(btn);
+}
+
+/* ---------- SortableJS ---------- */
+for(const colId of ['col-left','col-right']){
+  new Sortable(document.getElementById(colId), {
+    group:'panels', handle:'.ph', animation:180, ghostClass:'dragging',
+    onEnd:()=>{ saveLayout(); syncChartSize(); }
+  });
+}
+
+/* =========================================================
+   CHART — Lightweight Charts on the Rithmic bar feed
+   ========================================================= */
+const LWC = window.LightweightCharts;
+let mainChart=null, candle=null, chartReady=false;
+let currentBars = [];                 // [{time,open,high,low,close,volume}]
+let chartRoot = ROOT_BY_INSTRUMENT[document.getElementById('instrument').value] || 'NQ';
+const chartMsg = document.getElementById('chart-msg');
+const chartSymLbl = document.getElementById('chart-sym');
+
+function initChart(){
+  if(!LWC){ chartMsg.textContent='CHART LIB FAILED'; chartMsg.classList.add('show'); return; }
+  const el = document.getElementById('lwc-main');
+  mainChart = LWC.createChart(el, {
+    width: el.clientWidth, height: 340,
+    layout:{ background:{type:'solid',color:'#0a1a26'}, textColor:'#c8dae8', fontFamily:'Share Tech Mono' },
+    grid:{ vertLines:{color:'rgba(14,42,58,.6)'}, horzLines:{color:'rgba(14,42,58,.6)'} },
+    rightPriceScale:{ borderColor:'#0e2a3a' },
+    timeScale:{ borderColor:'#0e2a3a', timeVisible:true, secondsVisible:false },
+    crosshair:{ mode:0, vertLine:{color:'#4a7a9b',width:1}, horzLine:{color:'#4a7a9b',width:1} },
+  });
+  candle = mainChart.addCandlestickSeries({
+    upColor:'#22d08a', downColor:'#ff4c6e', wickUpColor:'#22d08a', wickDownColor:'#ff4c6e',
+    borderVisible:false, autoscaleInfoProvider:function(o){var r=o();try{if(r&&r.priceRange&&window._posBand){r.priceRange.minValue=Math.min(r.priceRange.minValue,window._posBand.min);r.priceRange.maxValue=Math.max(r.priceRange.maxValue,window._posBand.max);}}catch(e){}return r;},
+  });
+  chartReady = true;
+  new ResizeObserver(syncChartSize).observe(el.parentElement);
+}
+function syncChartSize(){
+  const el = document.getElementById('lwc-main');
+  if(mainChart && el && el.clientWidth) mainChart.applyOptions({width:el.clientWidth});
+  for(const k in oscCharts){
+    const oel = oscCharts[k].el;
+    if(oscCharts[k].chart && oel && oel.clientWidth) oscCharts[k].chart.applyOptions({width:oel.clientWidth});
+  }
+}
+
+async function pollBars(){
+  if(document.getElementById('panel-chart').classList.contains('hidden')) return;
+  if(!chartReady) return;
+  try{
+    var SB="https://osxwkgmjwtdyvqwlfyre.supabase.co", KEY="sb_publishable_6Rz0VGoqTeBzVwNMs0vcCg_ev34l8kb";
+    var r=await fetch(SB+"/rest/v1/bars?select=ts,o,h,l,c,v&symbol=eq."+encodeURIComponent(chartRoot)+"&tf=eq.1m&order=ts.desc&limit=400",{headers:{apikey:KEY,Authorization:"Bearer "+KEY}});
+    if(!r.ok) throw 0;
+    var d=await r.json(); if(!d.length) throw 0; d.reverse();
+    var bars=d.map(function(b){return {time:Math.floor(new Date(b.ts).getTime()/1000),open:+b.o,high:+b.h,low:+b.l,close:+b.c,volume:+b.v};});
+    currentBars=bars;
+    candle.setData(bars.map(function(b){return {time:b.time,open:b.open,high:b.high,low:b.low,close:b.close};}));
+    refreshIndicators(); chartMsg.classList.remove("show");
+  }catch(e){ chartMsg.textContent="WAITING FOR FEED"; chartMsg.classList.add("show"); }
+}
+// Accepts {bars:[...]} or a bare array; tolerates epoch ms vs s and field aliases.
+function normalizeBars(d){
+  const arr = Array.isArray(d) ? d : (Array.isArray(d.bars) ? d.bars : []);
+  return arr.map(b=>{
+    let t = b.time ?? b.t ?? b.timestamp;
+    if(t > 1e12) t = Math.floor(t/1000);     // ms -> s
+    return {
+      time: t,
+      open:+ (b.open ?? b.o), high:+ (b.high ?? b.h),
+      low:+ (b.low ?? b.l),   close:+ (b.close ?? b.c),
+      volume:+ (b.volume ?? b.v ?? 0)
+    };
+  }).filter(b=>Number.isFinite(b.time)&&Number.isFinite(b.close));
+}
+
+/* =========================================================
+   INDICATORS — computed in-app on the Rithmic bars
+   ========================================================= */
+function ema(vals, period){
+  const out = new Array(vals.length).fill(null);
+  const k = 2/(period+1); let prev=null;
+  for(let i=0;i<vals.length;i++){
+    const v = vals[i];
+    if(v==null){ continue; }
+    prev = (prev==null) ? v : (v*k + prev*(1-k));
+    if(i>=period-1) out[i]=prev;
+  }
+  return out;
+}
+function sma(vals, period){
+  const out=new Array(vals.length).fill(null); let sum=0;
+  for(let i=0;i<vals.length;i++){
+    sum+=vals[i];
+    if(i>=period) sum-=vals[i-period];
+    if(i>=period-1) out[i]=sum/period;
+  }
+  return out;
+}
+function bollinger(closes, period, mult){
+  const mid=sma(closes,period); const up=[],lo=[];
+  for(let i=0;i<closes.length;i++){
+    if(i<period-1||mid[i]==null){ up[i]=null; lo[i]=null; continue; }
+    let s=0; for(let j=i-period+1;j<=i;j++) s+=(closes[j]-mid[i])**2;
+    const sd=Math.sqrt(s/period);
+    up[i]=mid[i]+mult*sd; lo[i]=mid[i]-mult*sd;
+  }
+  return {mid,up,lo};
+}
+function sessionVWAP(bars){
+  // resets each calendar day (UTC) — adjust to RTH on the server if required
+  const out=new Array(bars.length).fill(null);
+  let cumPV=0,cumV=0,day=null;
+  for(let i=0;i<bars.length;i++){
+    const b=bars[i]; const d=Math.floor(b.time/86400);
+    if(d!==day){ day=d; cumPV=0; cumV=0; }
+    const tp=(b.high+b.low+b.close)/3; const v=b.volume||0;
+    cumPV+=tp*v; cumV+=v;
+    out[i]= cumV>0 ? cumPV/cumV : null;
+  }
+  return out;
+}
+function rsi(closes, period){
+  const out=new Array(closes.length).fill(null);
+  let gain=0,loss=0;
+  for(let i=1;i<closes.length;i++){
+    const ch=closes[i]-closes[i-1];
+    const g=Math.max(ch,0), l=Math.max(-ch,0);
+    if(i<=period){ gain+=g; loss+=l; if(i===period){ gain/=period; loss/=period; out[i]= loss===0?100:100-100/(1+gain/loss); } }
+    else{ gain=(gain*(period-1)+g)/period; loss=(loss*(period-1)+l)/period; out[i]= loss===0?100:100-100/(1+gain/loss); }
+  }
+  return out;
+}
+function macd(closes, fast, slow, signalP){
+  const ef=ema(closes,fast), es=ema(closes,slow);
+  const line=closes.map((_,i)=> (ef[i]!=null&&es[i]!=null)? ef[i]-es[i] : null);
+  const valid=line.map(v=>v==null?0:v);
+  const sig=ema(valid,signalP).map((v,i)=> line[i]==null?null:v);
+  const hist=line.map((v,i)=> (v!=null&&sig[i]!=null)? v-sig[i] : null);
+  return {line,sig,hist};
+}
+const pair=(bars,vals)=>bars.map((b,i)=>vals[i]==null?null:{time:b.time,value:vals[i]}).filter(Boolean);
+
+// Indicator registry
+const INDICATORS = [
+  {key:'EMA20', label:'EMA 20', type:'overlay', color:'#00d4ff'},
+  {key:'EMA50', label:'EMA 50', type:'overlay', color:'#ffb020'},
+  {key:'VWAP',  label:'VWAP',   type:'overlay', color:'#c98bff'},
+  {key:'BB',    label:'BB Bands',type:'overlay',color:'#4a7a9b'},
+  {key:'RSI',   label:'RSI 14', type:'osc',     color:'#00d4ff'},
+  {key:'MACD',  label:'MACD',   type:'osc',     color:'#22d08a'},
+];
+const active = {};            // key -> true
+const overlays = {};          // key -> series | {up,mid,lo}
+const oscCharts = {};         // key -> {el,chart,series...}
+const indMsg = document.getElementById('ind-msg');
+
+function buildIndButtons(){
+  const list = document.getElementById('ind-list');
+  for(const ind of INDICATORS){
+    const btn=document.createElement('button');
+    btn.innerHTML=`<span>${ind.label}</span><span class="swatch" style="background:${ind.color}"></span>`;
+    btn.addEventListener('click', ()=>{
+      if(active[ind.key]) removeIndicator(ind); else addIndicator(ind);
+      btn.classList.toggle('on', !!active[ind.key]);
+    });
+    list.appendChild(btn);
+  }
+}
+function addIndicator(ind){
+  if(!chartReady) return;
+  active[ind.key]=true;
+  if(ind.type==='overlay'){
+    if(ind.key==='BB'){
+      overlays.BB={
+        up:mainChart.addLineSeries({color:ind.color,lineWidth:1,priceLineVisible:false,lastValueVisible:false}),
+        mid:mainChart.addLineSeries({color:ind.color,lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:false}),
+        lo:mainChart.addLineSeries({color:ind.color,lineWidth:1,priceLineVisible:false,lastValueVisible:false}),
+      };
+    }else{
+      overlays[ind.key]=mainChart.addLineSeries({color:ind.color,lineWidth:2,priceLineVisible:false,lastValueVisible:false});
+    }
+  }else{
+    addOscChart(ind);
+  }
+  refreshIndicators();
+}
+function removeIndicator(ind){
+  active[ind.key]=false;
+  if(ind.type==='overlay'){
+    const o=overlays[ind.key];
+    if(o){ if(o.up){mainChart.removeSeries(o.up);mainChart.removeSeries(o.mid);mainChart.removeSeries(o.lo);} else mainChart.removeSeries(o); }
+    delete overlays[ind.key];
+  }else{
+    const oc=oscCharts[ind.key];
+    if(oc){ oc.chart.remove(); oc.el.remove(); delete oscCharts[ind.key]; }
+  }
+}
+function addOscChart(ind){
+  const wrap=document.createElement('div'); wrap.className='osc';
+  const lbl=document.createElement('div'); lbl.className='osc-lbl'; lbl.textContent=ind.label; wrap.appendChild(lbl);
+  document.getElementById('osc-area').appendChild(wrap);
+  const chart=LWC.createChart(wrap,{
+    width:wrap.clientWidth, height:120,
+    layout:{background:{type:'solid',color:'#0a1a26'},textColor:'#4a7a9b',fontFamily:'Share Tech Mono'},
+    grid:{vertLines:{color:'rgba(14,42,58,.5)'},horzLines:{color:'rgba(14,42,58,.5)'}},
+    rightPriceScale:{borderColor:'#0e2a3a'},
+    timeScale:{borderColor:'#0e2a3a',timeVisible:true,secondsVisible:false},
+    crosshair:{mode:0},
+  });
+  const oc={el:wrap,chart};
+  if(ind.key==='RSI'){
+    oc.line=chart.addLineSeries({color:ind.color,lineWidth:2,priceLineVisible:false});
+  }else{ // MACD
+    oc.hist=chart.addHistogramSeries({priceLineVisible:false});
+    oc.macd=chart.addLineSeries({color:'#00d4ff',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
+    oc.signal=chart.addLineSeries({color:'#ffb020',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
+  }
+  oscCharts[ind.key]=oc;
+  // keep time axes aligned with the main chart
+  chart.timeScale().subscribeVisibleLogicalRangeChange(r=>{ if(r&&mainChart) mainChart.timeScale().setVisibleLogicalRange(r); });
+}
+function refreshIndicators(){
+  if(!currentBars.length) return;
+  const closes=currentBars.map(b=>b.close);
+  let vwapMissing=false;
+
+  if(active.EMA20&&overlays.EMA20) overlays.EMA20.setData(pair(currentBars,ema(closes,20)));
+  if(active.EMA50&&overlays.EMA50) overlays.EMA50.setData(pair(currentBars,ema(closes,50)));
+  if(active.VWAP&&overlays.VWAP){
+    if(currentBars.some(b=>b.volume>0)) overlays.VWAP.setData(pair(currentBars,sessionVWAP(currentBars)));
+    else vwapMissing=true;
+  }
+  if(active.BB&&overlays.BB){
+    const bb=bollinger(closes,20,2);
+    overlays.BB.up.setData(pair(currentBars,bb.up));
+    overlays.BB.mid.setData(pair(currentBars,bb.mid));
+    overlays.BB.lo.setData(pair(currentBars,bb.lo));
+  }
+  if(active.RSI&&oscCharts.RSI){
+    oscCharts.RSI.line.setData(pair(currentBars,rsi(closes,14)));
+  }
+  if(active.MACD&&oscCharts.MACD){
+    const m=macd(closes,12,26,9);
+    oscCharts.MACD.macd.setData(pair(currentBars,m.line));
+    oscCharts.MACD.signal.setData(pair(currentBars,m.sig));
+    oscCharts.MACD.hist.setData(currentBars.map((b,i)=> m.hist[i]==null?null:{time:b.time,value:m.hist[i],color:m.hist[i]>=0?'#22d08a':'#ff4c6e'}).filter(Boolean));
+  }
+  indMsg.textContent = vwapMissing ? 'VWAP needs bar volume from the feed.' : '';
+  syncChartSize();
+}
+
+/* ---------- Instrument drives chart root ---------- */
+document.getElementById('instrument').addEventListener('change', (e)=>{
+  chartRoot = ROOT_BY_INSTRUMENT[e.target.value] || e.target.value;
+  chartSymLbl.textContent = `${document.getElementById('instrument').value} · ${INTERVAL}m · RITHMIC`;
+  currentBars=[];
+  pollBars();
+});
+
+/* =========================================================
+   ORDER ENTRY
+   ========================================================= */
+let orderType='MKT';
+document.querySelectorAll('.otype button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.otype button').forEach(x=>x.classList.remove('sel'));
+    b.classList.add('sel'); orderType=b.dataset.ot;
+  });
+});
+const qtyEl=document.getElementById('qty');
+document.getElementById('qty-up').addEventListener('click',()=>{qtyEl.value=Math.max(1,(+qtyEl.value||1)+1);});
+document.getElementById('qty-dn').addEventListener('click',()=>{qtyEl.value=Math.max(1,(+qtyEl.value||1)-1);});
+qtyEl.addEventListener('change',()=>{qtyEl.value=Math.max(1,Math.floor(+qtyEl.value||1));});
+
+const entryMsg=document.getElementById('entry-msg'); let entryMsgTimer=null;
+function flash(msg,ok){
+  entryMsg.textContent=msg; entryMsg.className=ok?'ok':'err';
+  clearTimeout(entryMsgTimer); entryMsgTimer=setTimeout(()=>{entryMsg.textContent='';},4000);
+}
+async function placeOrder(side){
+  if(!serverOnline){ flash('SERVER OFFLINE',false); return; }
+  // Handoff #37 item 7: route through the copier. A selected group routes to its MASTER and
+  // fans out to that group's subscribed subs (copy-trade). No selection => MANUAL fan-out to
+  // every group subscribed to MANUAL (prior behaviour). `direction` is sent so the copier logs it.
+  const routeEl=document.getElementById('route');
+  const route=routeEl?routeEl.value:'';
+  // R-09 Issue 1: manual:true is an explicit bypass marker so the server skips get_contracts()
+  // sizing (which forces a 2-contract 1-TP+1-runner minimum) and executes `contracts` exactly.
+  // strategy:'MANUAL' is still sent for the copier's fan-out routing.
+  const payload={side,direction:side,manual:true,instrument:document.getElementById('instrument').value,
+                 contracts:Math.max(1,+qtyEl.value||1),order_type:orderType,strategy:'MANUAL'};
+  if(route) payload.group_id=route;
+  try{
+    const r=await fetch(API+'/api/place_order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const d=await r.json().catch(()=>({}));
+    const okFan = r.ok && d && d.ok!==false;
+    if(okFan){ const n=(d.results&&d.results.length)?` → ${d.results.length} fill(s)`:''; flash(`${side} ${payload.contracts} ${payload.instrument} ${orderType} ✓${n}`.trim(),true); }
+    else flash(`REJECTED: ${(d&&d.msg)||d.message||r.status}`,false);
+  }catch(e){ flash('SERVER OFFLINE',false); }
+}
+function renderRoutes(state){
+  const sel=document.getElementById('route'); if(!sel) return;
+  const groups=Array.isArray(state.groups)?state.groups:[];
+  const accts=state.accounts||{};
+  const prev=sel.value;
+  const opts=groups.filter(g=>g.enabled&&g.master).map(g=>{
+    const ml=(accts[g.master]&&accts[g.master].label)||g.master;
+    return `<option value="${g.id}">${(g.name||g.id)} · ${ml} (fan-out)</option>`;
+  }).join('');
+  sel.innerHTML='<option value="">— select copier group —</option>'+opts;
+  if(prev) sel.value=prev;
+}
+document.getElementById('btn-buy').addEventListener('click',()=>placeOrder('BUY'));
+document.getElementById('btn-sell').addEventListener('click',()=>placeOrder('SELL'));
+
+/* =========================================================
+   STATE — position / P&L / history
+   ========================================================= */
+let serverOnline=false;
+const srvEl=document.getElementById('srv');
+function setServer(on){
+  serverOnline=on;
+  srvEl.textContent=on?'SERVER ONLINE':'SERVER OFFLINE';
+  srvEl.className=on?'online':'offline';
+  if(!on){
+    document.getElementById('position-body').innerHTML='<div class="offline-note">SERVER OFFLINE</div>';
+    document.getElementById('pnl-body').innerHTML='<div class="offline-note">SERVER OFFLINE</div>';
+  }
+}
+const fmt$=v=>(v<0?'-':'')+'$'+Math.abs(v).toFixed(2);
+function flattenBtn(){return '<button id="btn-flatten">FLATTEN</button>';}
+async function flatten(){
+  try{ await fetch(API+'/api/emergency',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:'account'})}); flash('FLATTEN SENT',true);}
+  catch(e){ flash('SERVER OFFLINE',false); }
+}
+function renderPosition(state){
+  const el=document.getElementById('position-body'); const pos=state.position;
+  if(!pos||!pos.contracts){
+    el.innerHTML='<div class="kv"><span class="k">STATUS</span><span class="v">FLAT</span></div>'+flattenBtn();
+  }else{
+    const dirCls=/long|buy/i.test(pos.direction||'')?'long':'short'; const upnl=+pos.unrealized_pnl||0;
+    el.innerHTML=
+      `<div class="kv"><span class="k">DIR</span><span class="v ${dirCls}">${(pos.direction||'—').toUpperCase()}</span></div>`+
+      `<div class="kv"><span class="k">CONTRACTS</span><span class="v">${pos.contracts}</span></div>`+
+      `<div class="kv"><span class="k">INSTRUMENT</span><span class="v">${pos.instrument||'—'}</span></div>`+
+      `<div class="kv"><span class="k">ENTRY</span><span class="v">${pos.entry_price??'—'}</span></div>`+
+      `<div class="kv"><span class="k">UNREAL P&L</span><span class="v ${upnl>=0?'long':'short'}">${fmt$(upnl)}</span></div>`+flattenBtn();
+  }
+  el.querySelector('#btn-flatten').addEventListener('click',flatten);
+}
+function renderPnl(orders){
+  const el=document.getElementById('pnl-body');
+  const closed=orders.filter(o=>typeof o.pnl==='number');
+  const total=closed.reduce((s,o)=>s+o.pnl,0); const wins=closed.filter(o=>o.pnl>0);
+  const winRate=closed.length?Math.round(wins.length/closed.length*100):0;
+  const avgWin=wins.length?wins.reduce((s,o)=>s+o.pnl,0)/wins.length:0;
+  el.innerHTML=
+    `<div id="pnl-total" class="${total>=0?'long':'short'}">${fmt$(total)}</div>`+
+    `<div class="kv"><span class="k">TRADES</span><span class="v">${closed.length}</span></div>`+
+    `<div class="kv"><span class="k">WIN RATE</span><span class="v">${winRate}%</span></div>`+
+    `<div class="kv"><span class="k">AVG WIN</span><span class="v long">${fmt$(avgWin)}</span></div>`;
+}
+function renderHistory(orders){
+  const body=document.getElementById('history-body');
+  const rows=[...orders].slice(-20).reverse();
+  if(!rows.length){ body.innerHTML='<tr><td colspan="4" class="st-other">NO ORDERS</td></tr>'; return; }
+  body.innerHTML=rows.map(o=>{
+    const dir=(o.direction||o.side||'—').toUpperCase(); const dirCls=/LONG|BUY/.test(dir)?'long':'short';
+    const status=(o.status||'—'); const stCls=/fill/i.test(status)?'st-filled':/reject/i.test(status)?'st-rejected':'st-other';
+    const t=o.time||o.timestamp||'—';
+    return `<tr><td>${t}</td><td class="${dirCls}">${dir}</td><td>${o.fill_price??o.price??'—'}</td><td class="${stCls}">${status}</td></tr>`;
+  }).join('');
+}
+async function pollState(){
+  try{
+    const r=await fetch(API+'/api/state'); if(!r.ok) throw 0;
+    const state=await r.json(); setServer(true);
+    const orders=Array.isArray(state.orders)?state.orders:[];
+    renderPosition(state); renderPnl(orders); renderHistory(orders); renderRoutes(state);
+  }catch(e){ setServer(false); }
+}
+
+/* =========================================================
+   ORDER FLOW L2
+   ========================================================= */
+const l2Wrap=document.getElementById('l2-wrap');
+async function pollL2(){
+  if(document.getElementById('panel-l2').classList.contains('hidden')) return;
+  var sym=(typeof BOOK_SYM!=='undefined' && BOOK_SYM[chartRoot])||chartRoot;
+  // R-09 Issue 2 (price lag): prefer the bot's LIVE /api/book on :7331 (ORDERFLOW_BASE, via
+  // botFetch). That is one hop from the Rithmic feed — no Supabase relay and no 1-minute
+  // bar-close quantization, which is what made the readout trail the true market price.
+  // Only reachable where the bot origin + session token are present (Tom / same-origin /studio),
+  // so fall back to the Supabase client_l2 edge for license-gated clients or if the bot origin
+  // isn't reachable. renderL2() already expects the same { bids, asks, mid } shape /api/book returns.
+  if(BOT_TOK){
+    try{
+      var rb=await botFetch('/api/book?symbol='+encodeURIComponent(sym));
+      if(rb.ok){ renderL2(await rb.json()); return; }
+    }catch(e){ /* fall through to the edge proxy below */ }
+  }
+  var L2_EDGE="https://osxwkgmjwtdyvqwlfyre.supabase.co/functions/v1/client_l2";
+  var lic=(new URLSearchParams(location.search).get('lic')||localStorage.getItem('ff_license')||'').trim();
+  if(lic){ try{ localStorage.setItem('ff_license', lic); }catch(e){} }
+  if(!lic){ l2Wrap.innerHTML='<div class="offline-note">Activate your license on the dashboard to enable L2</div>'; return; }
+  try{
+    var r=await fetch(L2_EDGE+'?key='+encodeURIComponent(lic)+'&symbol='+encodeURIComponent(sym));
+    if(r.status===403){ l2Wrap.innerHTML='<div class="offline-note" style="line-height:1.8">\u{1F512} L2 / ORDER FLOW<br><span style="color:#f0a500">Desk tier — or add for $35/mo</span></div>'; return; }
+    if(!r.ok) throw 0;
+    renderL2(await r.json());
+  }catch(e){ l2Wrap.innerHTML='<div class="offline-note">L2 OFFLINE</div>'; }
+}
+function renderL2(d){
+  // :7331 /api/book returns { bids:[[px,sz]...], asks:[[px,sz]...], mid }.
+  // Normalise [px,sz] pairs -> {price,size}; current price = mid.
+  const toRows = a => (a||[]).map(x => Array.isArray(x) ? {price:x[0], size:x[1]} : x);
+  const asks=toRows(d.asks).slice(0,10); const bids=toRows(d.bids).slice(0,10);
+  const lastPrice = (d.mid != null) ? d.mid : d.last_price;
+  if(!asks.length&&!bids.length){ l2Wrap.innerHTML='<div class="offline-note">NO L2 DATA</div>'; return; }
+  const maxSz=Math.max(1,...asks.map(a=>+a.size||0),...bids.map(b=>+b.size||0));
+  let html='';
+  [...asks].sort((a,b)=>b.price-a.price).forEach(a=>{
+    const w=Math.round((+a.size||0)/maxSz*100);
+    html+=`<div class="l2row"><div class="l2side"><div class="l2bar ask" style="width:${w}%"></div><span class="l2sz ask">${a.size}</span></div><div class="px">${a.price}</div><div class="l2side"></div></div>`;
+  });
+  if(lastPrice!=null) html+=`<div class="l2row cur"><div class="l2side"></div><div class="px">${lastPrice}</div><div class="l2side"></div></div>`;
+  [...bids].sort((a,b)=>b.price-a.price).forEach(b=>{
+    const w=Math.round((+b.size||0)/maxSz*100);
+    html+=`<div class="l2row"><div class="l2side"></div><div class="px">${b.price}</div><div class="l2side"><div class="l2bar bid" style="width:${w}%"></div><span class="l2sz bid">${b.size}</span></div></div>`;
+  });
+  l2Wrap.innerHTML=html;
+}
+
+/* =========================================================
+   BOOT
+   ========================================================= */
+initChart();
+buildIndButtons();
+chartSymLbl.textContent = `${document.getElementById('instrument').value} · ${INTERVAL}m · RITHMIC`;
+pollState();   setInterval(pollState, 1000);
+pollBars();    setInterval(pollBars, POLL_BARS_MS);
+/* open-position lines (entry/tp/sl/trail); drag TP/SL/TRAIL to adjust */
+var _posLineMap={}; window._posDrag={};
+async function pollPositions(){
+  if(!chartReady || !candle) return;
+  try{
+    var SB="https://osxwkgmjwtdyvqwlfyre.supabase.co", KEY="sb_publishable_6Rz0VGoqTeBzVwNMs0vcCg_ev34l8kb";
+    var instr=document.getElementById('instrument').value;
+    var r=await fetch(SB+"/rest/v1/positions?select=side,entry,tp,tp1,tp2,sl,trail,qty&status=eq.open&symbol=eq."+encodeURIComponent(instr),{headers:{apikey:KEY,Authorization:"Bearer "+KEY}});
+    if(!r.ok) return;
+    var rows=await r.json();
+    Object.keys(_posLineMap).forEach(function(f){ try{candle.removePriceLine(_posLineMap[f].line);}catch(e){} }); _posLineMap={};
+    if(!rows.length){ window._posBand=null; return; }
+    var p=rows[0];
+    var d=window._posDrag||{};
+    var v={entry:p.entry, tp1:(d.tp1!=null?d.tp1:(p.tp1!=null?p.tp1:p.tp)), tp2:(d.tp2!=null?d.tp2:p.tp2), sl:(d.sl!=null?d.sl:p.sl), trail:(d.trail!=null?d.trail:p.trail)};
+    function mk(f,color,style,title){ if(v[f]==null||v[f]==="")return; var line=candle.createPriceLine({price:+v[f],color:color,lineWidth:1,lineStyle:style,axisLabelVisible:true,title:title}); _posLineMap[f]={line:line,price:+v[f]}; }
+    mk('entry',"#00d4ff",0,"ENTRY "+(p.side||"")+(p.qty?" x"+p.qty:""));
+    mk('tp1',"#22d08a",2,"TP1");
+    mk('tp2',"#5eead4",1,"TP2");
+    mk('sl',"#ff4c6e",2,"SL");
+    mk('trail',"#ffb800",1,"TRAIL");
+    var vv=["entry","tp1","tp2","sl","trail"].map(function(k){return +v[k];}).filter(function(x){return !isNaN(x);});
+    if(vv.length){ var mn=Math.min.apply(null,vv),mx=Math.max.apply(null,vv),pad=((mx-mn)*0.25)||3; window._posBand={min:mn-pad,max:mx+pad}; }
+  }catch(e){}
+}
+pollPositions(); setInterval(pollPositions, 3000);
+
+(function(){
+  var el=document.getElementById('lwc-main'); if(!el) return;
+  var drag=null, TICK=0.25, THRESH=8;
+  el.addEventListener('mousemove',function(e){
+    if(drag||!candle) return;
+    var rect=el.getBoundingClientRect(), y=e.clientY-rect.top, near=false;
+    ["tp1","tp2","sl","trail"].forEach(function(f){ var m=_posLineMap[f]; if(!m)return; var cy=candle.priceToCoordinate(m.price); if(cy!=null&&Math.abs(cy-y)<THRESH) near=true; });
+    el.style.cursor=near?'ns-resize':'default';
+  });
+  el.addEventListener('mousedown',function(e){
+    if(!candle) return;
+    var rect=el.getBoundingClientRect(), y=e.clientY-rect.top, best=null, bd=THRESH+1;
+    ["tp1","tp2","sl","trail"].forEach(function(f){ var m=_posLineMap[f]; if(!m)return; var cy=candle.priceToCoordinate(m.price); if(cy==null)return; var dd=Math.abs(cy-y); if(dd<bd){bd=dd;best=f;} });
+    if(best){ drag=best; mainChart.applyOptions({handleScroll:false,handleScale:false}); e.preventDefault(); e.stopPropagation(); }
+  });
+  window.addEventListener('mousemove',function(e){
+    if(!drag||!candle) return;
+    var rect=el.getBoundingClientRect(), y=e.clientY-rect.top, pr=candle.coordinateToPrice(y);
+    if(pr==null) return; pr=Math.round(pr/TICK)*TICK;
+    if(_posLineMap[drag]){ _posLineMap[drag].line.applyOptions({price:pr}); _posLineMap[drag].price=pr; }
+    window._posDrag[drag]=pr;
+  });
+  window.addEventListener('mouseup',function(){
+    if(!drag) return; var f=drag; drag=null;
+    mainChart.applyOptions({handleScroll:true,handleScale:true});
+    var pr=window._posDrag[f];
+    try{ fetch(API+"/api/modify_position",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({symbol:document.getElementById('instrument').value,field:f,price:pr})}).catch(function(){}); }catch(e){}
+  });
+})();
+pollL2();      setInterval(pollL2, 1000);
+window.addEventListener('resize', syncChartSize);
+</script>
+</body>
+</html>
