@@ -9,6 +9,11 @@ order — each builds on the last. Full deploy runbook: `COWORK_HANDOFF_43_visib
 | 1 | **Bot in git + deploy-from-git** | code visibility + snapshot/live drift | `deploy.sh`, `bot.gitignore.sample` | `SOP_01_bot_in_git.md` |
 | 2 | **Supabase health heartbeat** | runtime visibility (up/down, sha, positions, fixes) | `heartbeat.py`, `bot_health.sql`, `ff-heartbeat.service`, `ff-heartbeat.timer` | `SOP_02_heartbeat.md` |
 | 3 | **Guarded agent access** | agents can *act*, not just read | `ff-agent-sudoers.sample` | `SOP_03_agent_access.md` |
+| 4 | **Disk-space alarm (H-74)** | R-42 D1 — silent disk fill destroys data | `v_disk_health.sql`, `disk_watch.py`, `test_disk_watch.py`, `ff-disk-watch.service`, `ff-disk-watch.timer` | `SOP_04_disk_alarm.md` |
+
+Rec 4 builds on Rec 2's heartbeat (disk telemetry rides the existing `bot_health` rows) and reuses
+the H-70E @DDHealthbot channel — it adds no new telemetry carrier and no second alert channel.
+Completion record: `H74_COMPLETION.md`.
 
 **Recommended:** do **1 + 2 first** — together they remove ~90% of the blindness with no new
 infrastructure and no new attack surface. Add **3** when you want agents to close repair orders end-to-end.

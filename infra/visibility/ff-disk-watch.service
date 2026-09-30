@@ -1,0 +1,16 @@
+[Unit]
+Description=FF disk-space alarm watcher (H-74/74-C -> @DDHealthbot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=tom
+# Reuses the heartbeat env for SB_URL / SB_KEY, and needs the SAME Telegram creds the
+# bot's ff_notifier uses (the H-70E @DDHealthbot -> Tom channel — do NOT mint a new bot).
+# Add these two to /etc/ff/heartbeat.env (chmod 600) alongside SB_URL/SB_KEY/BOT_DIR:
+#   TELEGRAM_BOT_TOKEN=<same token ff_notifier uses>
+#   TELEGRAM_CHAT_ID=<the @DDHealthbot -> Tom chat id>
+# Optional: FF_DISK_RENOTIFY_H=4 , FF_DISK_WATCH_STATE=/home/tom/futuresforged-bot/.disk_watch_state.json
+EnvironmentFile=/etc/ff/heartbeat.env
+ExecStart=/usr/bin/python3 /home/tom/futuresforged-bot/disk_watch.py
