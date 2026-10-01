@@ -259,7 +259,8 @@ class TelegramHtmlTest(unittest.TestCase):
 
     def test_view_reasons_match_the_sql(self):
         import os
-        sql = open(os.path.join(os.path.dirname(dw.__file__), "v_disk_health.sql")).read()
+        with open(os.path.join(os.path.dirname(dw.__file__), "v_disk_health.sql")) as fh:
+            sql = fh.read()
         for reason in dw.VIEW_REASONS.values():
             self.assertIn("'%s'" % reason, sql, "VIEW_REASONS drifted from v_disk_health.sql")
 
