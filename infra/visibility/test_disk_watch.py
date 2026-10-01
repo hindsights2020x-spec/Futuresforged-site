@@ -246,6 +246,52 @@ class HonestSendTest(unittest.TestCase):
             dw.STATE_FILE, dw.FORCE = orig_state, orig_force
 
 
+class TelegramHtmlTest(unittest.TestCase):
+    """F-005: parse_mode=HTML rejects a bare < > & with HTTP 400. Every real reason the
+    view emits must reach Telegram escaped, or no real alarm is ever delivered."""
+
+    ALLOWED_TAGS = ("<b>", "</b>", "<i>", "</i>")
+
+    def _strip_tags(self, msg):
+        for tag in self.ALLOWED_TAGS:
+            msg = msg.replace(tag, "")
+        return msg
+
+    def test_view_reasons_match_the_sql(self):
+        import os
+        sql = open(os.path.join(os.path.dirname(dw.__file__), "v_disk_health.sql")).read()
+        for reason in dw.VIEW_REASONS.values():
+            self.assertIn("'%s'" % reason, sql, "VIEW_REASONS drifted from v_disk_health.sql")
+
+    def test_every_view_reason_is_escaped(self):
+        for key, reason in dw.VIEW_REASONS.items():
+            state = "CRITICAL" if key.startswith("CRITICAL") else key
+            for kind in ("transition", "renotify", "recovery"):
+                msg = dw.build_message(state, {"free_gb_now": 1.0, "fill_gb_per_h": 0.3,
+                                               "samples": 90, "reason": reason}, kind, 3600.0)
+                body = self._strip_tags(msg)
+                self.assertNotIn("<", body, "%s/%s: bare < would 400" % (key, kind))
+                self.assertNotIn(">", body, "%s/%s: bare > would 400" % (key, kind))
+
+    def test_forced_rows_carry_the_real_reason_text(self):
+        import io, contextlib
+        sent = []
+        orig = (dw.send, dw.STATE_FILE, dw.FORCE)
+        import os, tempfile
+        dw.send = lambda text: sent.append(text) or True
+        dw.STATE_FILE = os.path.join(tempfile.mkdtemp(), "s.json")
+        try:
+            for f in ("WARN", "CRITICAL"):
+                dw.FORCE = f
+                with contextlib.redirect_stdout(io.StringIO()):
+                    dw.main()
+        finally:
+            dw.send, dw.STATE_FILE, dw.FORCE = orig
+        self.assertEqual(len(sent), 2)
+        self.assertIn("free &lt; 5.0 GiB", sent[0])
+        self.assertIn("free &lt; 2.0 GiB", sent[1])
+
+
 # ── 74-B rule mirror, kept identical to v_disk_health.sql ─────────────────────
 def classify(samples, thresholds=(5.0, 2.0, 0.25), min_samples=45):
     """Mirror of v_disk_health. samples = list of (minute, free_gib) already inside the

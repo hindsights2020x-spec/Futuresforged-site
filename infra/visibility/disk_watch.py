@@ -49,6 +49,7 @@ Env:
   FF_DISK_RENOTIFY_H   default 4        re-notify cadence, hours
   FF_DISK_WATCH_FORCE  optional: OK|WARN|CRITICAL|UNKNOWN  -- test override, bypasses the view
 """
+import html
 import json
 import os
 import sys
@@ -70,6 +71,15 @@ WARN_CLEAR_GB      = 6.0    # F-002: WARN trips < 5.0, clears >= 6.0
 CRIT_CLEAR_GB      = 3.0    # F-002: level CRITICAL trips < 2.0, clears >= 3.0
 CRIT_CLEAR_FILL    = 0.20   # F-002: rate CRITICAL trips > 0.25 GiB/h, clears <= 0.20
 RATE_MIN_SAMPLES   = 45     # same trust floor as v_disk_health
+
+# The reason strings v_disk_health emits, verbatim (v_disk_health.sql). Used by the
+# FORCE test rows and pinned by the F-005 escaping test.
+VIEW_REASONS = {
+    "CRITICAL": "free < 2.0 GiB - L2 recorders paused, capture being lost",
+    "CRITICAL_RATE": "fill rate > 0.25 GiB/h over a trusted window",
+    "WARN": "free < 5.0 GiB - prune floor, system shedding data",
+    "OK": "ok",
+}
 
 BLIND_ROWS_MAX_S   = 15 * 60   # F-001: bot_health counts as "arriving" if newest <= 15 min
 BLIND_DISK_MAX_S   = 30 * 60   # F-001: no disk reading for > 30 min while rows arrive
@@ -148,7 +158,11 @@ def _fmt(row):
     fill = _f(row.get("fill_gb_per_h"))
     free_s = "%.2f GiB" % free if free is not None else "unknown"
     fill_s = "%+.3f GiB/h" % fill if fill is not None else "unknown"
-    return free_s, fill_s, int(row.get("samples") or 0), (row.get("reason") or "")
+    # F-005: the message goes out with parse_mode=HTML, and the view's reasons contain a
+    # bare "<" / ">" ("free < 5.0 GiB"). Telegram rejects any <, > or & that is not part
+    # of a tag with HTTP 400, so an unescaped reason made every REAL alarm undeliverable.
+    return (free_s, fill_s, int(row.get("samples") or 0),
+            html.escape(str(row.get("reason") or ""), quote=False))
 
 
 def build_message(state, row, kind, age_s):
@@ -352,9 +366,12 @@ def main():
     now_ts = time.time()
     if FORCE in ("OK", "WARN", "CRITICAL", "UNKNOWN"):
         free = {"CRITICAL": 1.23, "OK": 8.9}.get(FORCE, 4.56)
+        # Carry the view's REAL reason text, so the acceptance test sends the same
+        # characters a real alarm does (F-005: the "<" in these broke delivery).
+        real = VIEW_REASONS.get(FORCE, "no disk reading in last 90m")
         row = {"state": FORCE, "free_gb_now": free,
                "fill_gb_per_h": 0.30 if FORCE == "CRITICAL" else 0.05,
-               "samples": 90, "reason": "FORCED TEST (%s)" % FORCE}
+               "samples": 90, "reason": "FORCED TEST (%s): %s" % (FORCE, real)}
         print("[disk_watch] FORCE=%s — bypassing the view for an acceptance test" % FORCE)
     else:
         row = read_view()
