@@ -61,6 +61,9 @@ sudo systemctl enable --now ff-disk-watch.timer
    That receipt is the evidence that closes ops_item 74-C — a log line or a row is not enough.
 4. **Recovery clears state** — after the OK run, `.disk_watch_state.json` shows `"state":"OK"`.
 5. **Short window is silent** — `FF_DISK_WATCH_FORCE=UNKNOWN ... disk_watch.py` sends nothing.
+6. **Send is honest (F-004)** — each run prints `sent=True|False`. `sent=False` means Telegram did not accept it (no creds, FF_TELEGRAM_ALERTS=0, or HTTP error); the state file is NOT advanced, so the next run retries instead of going quiet for 4h.
+7. **Blind monitor (F-001)** — not exercised by FORCE. Unforced runs also read bot_health directly and page "FF disk monitor BLIND" if rows arrive (newest <= 15 min) but none has disk_free_bytes for > 30 min. Rows stopped entirely = heartbeat outage, silent here (watch_config owns it).
+8. **Hysteresis (F-002)** — WARN clears only at >= 6.0 GiB; CRITICAL clears only at >= 3.0 GiB and fill <= 0.20 GiB/h (or rate untrusted). The FORCE=OK row uses 8.9 GiB / 0.05 GiB/h so the step-3 recovery still fires.
 6. **Heartbeat survives a disk read failure** — covered by B9's 16 tests; `host_metrics()`
    is wrapped so a `statvfs` failure leaves the columns NULL and never drops the row.
 

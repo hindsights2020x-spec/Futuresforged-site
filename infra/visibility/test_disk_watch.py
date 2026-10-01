@@ -65,13 +65,14 @@ class StateMachineTest(unittest.TestCase):
         self.assertEqual(nxt["since"], 1000.0 + 60)
 
     def test_recovery_sends_once_then_silent(self):
+        # free 8.0: clear of both hysteresis bands (F-002), so CRITICAL recovers to OK.
         prev = {"state": "CRITICAL", "since": 1000.0, "last_notify": 1000.0}
-        msg, nxt = dw.decide("OK", _row("OK"), prev, 5000.0, RENOTIFY)
+        msg, nxt = dw.decide("OK", _row("OK", free=8.0), prev, 5000.0, RENOTIFY)
         self.assertIsNotNone(msg)
         self.assertIn("recovered", msg)
         self.assertEqual(nxt["state"], "OK")
         # and a second OK evaluation is silent
-        msg2, _ = dw.decide("OK", _row("OK"), nxt, 6000.0, RENOTIFY)
+        msg2, _ = dw.decide("OK", _row("OK", free=8.0), nxt, 6000.0, RENOTIFY)
         self.assertIsNone(msg2)
 
     def test_unknown_is_silent_and_preserves_prior_alarm(self):
@@ -89,6 +90,160 @@ class StateMachineTest(unittest.TestCase):
                              prev, 2000.0, RENOTIFY)
         self.assertIsNone(msg)
         self.assertEqual(nxt["state"], "OK")
+
+
+class HysteresisTest(unittest.TestCase):
+    """F-002: clearing needs more room than tripping, so a boundary hover cannot flap."""
+
+    def _warn(self):
+        return {"state": "WARN", "since": 1000.0, "last_notify": 1000.0}
+
+    def _crit(self):
+        return {"state": "CRITICAL", "since": 1000.0, "last_notify": 1000.0}
+
+    def test_warn_hovering_just_above_trip_does_not_recover(self):
+        msg, nxt = dw.decide("OK", _row("OK", free=5.4), self._warn(), 2000.0, RENOTIFY)
+        self.assertIsNone(msg, "5.4 GiB is above the 5.0 trip but below the 6.0 clear")
+        self.assertEqual(nxt["state"], "WARN")
+        self.assertEqual(nxt["since"], 1000.0, "held alarm keeps its age")
+
+    def test_flapping_at_5gib_sends_one_message_not_pairs(self):
+        prev, sent = {"state": "OK", "since": 0.0, "last_notify": 0.0}, 0
+        for i, (st, free) in enumerate([("WARN", 4.9), ("OK", 5.1)] * 6):
+            msg, prev = dw.decide(st, _row(st, free=free), prev, 1000.0 + 300 * i, RENOTIFY)
+            sent += msg is not None
+        self.assertEqual(sent, 1, "one WARN, then held: no alarm/recovery pairs")
+
+    def test_warn_clears_at_6gib(self):
+        msg, nxt = dw.decide("OK", _row("OK", free=6.0), self._warn(), 2000.0, RENOTIFY)
+        self.assertIn("recovered", msg)
+        self.assertEqual(nxt["state"], "OK")
+
+    def test_level_critical_holds_below_3gib(self):
+        msg, nxt = dw.decide("WARN", _row("WARN", free=2.6, fill=0.0), self._crit(),
+                             2000.0, RENOTIFY)
+        self.assertIsNone(msg)
+        self.assertEqual(nxt["state"], "CRITICAL")
+
+    def test_critical_steps_down_to_warn_inside_the_warn_band(self):
+        msg, nxt = dw.decide("OK", _row("OK", free=4.0, fill=0.0), self._crit(),
+                             2000.0, RENOTIFY)
+        self.assertIsNotNone(msg)
+        self.assertIn("WARN", msg)
+        self.assertEqual(nxt["state"], "WARN")
+
+    def test_rate_critical_holds_with_plenty_of_space_while_fill_above_clear(self):
+        # Rate CRITICAL fires with ~11 GiB free; space alone must not clear it.
+        msg, nxt = dw.decide("OK", _row("OK", free=11.0, fill=0.22), self._crit(),
+                             2000.0, RENOTIFY)
+        self.assertIsNone(msg)
+        self.assertEqual(nxt["state"], "CRITICAL")
+
+    def test_rate_critical_clears_when_fill_drops_to_clear_band(self):
+        msg, nxt = dw.decide("OK", _row("OK", free=11.0, fill=0.15), self._crit(),
+                             2000.0, RENOTIFY)
+        self.assertIn("recovered", msg)
+        self.assertEqual(nxt["state"], "OK")
+
+    def test_untrusted_rate_does_not_hold_critical(self):
+        row = _row("OK", free=11.0, fill=0.40)
+        row["samples"] = 10
+        msg, nxt = dw.decide("OK", row, self._crit(), 2000.0, RENOTIFY)
+        self.assertEqual(nxt["state"], "OK", "a rate under the 45-sample floor is not a value")
+
+    def test_hysteresis_never_raises_an_alarm(self):
+        prev = {"state": "OK", "since": 0.0, "last_notify": 0.0}
+        msg, nxt = dw.decide("OK", _row("OK", free=5.5), prev, 2000.0, RENOTIFY)
+        self.assertIsNone(msg)
+        self.assertEqual(nxt["state"], "OK")
+
+
+class BlindMonitorTest(unittest.TestCase):
+    """F-001: rows arriving but no disk reading > 30 min pages BLIND; rows stopped = silent."""
+
+    def test_verdicts(self):
+        self.assertFalse(dw.blind_verdict(60, 60))
+        self.assertFalse(dw.blind_verdict(60, 29 * 60))
+        self.assertTrue(dw.blind_verdict(60, 31 * 60))
+        self.assertTrue(dw.blind_verdict(60, None), "rows but never a disk reading")
+        self.assertIsNone(dw.blind_verdict(None, None), "no rows: cannot tell")
+        self.assertIsNone(dw.blind_verdict(20 * 60, 40 * 60),
+                          "rows stopped: heartbeat outage, owned by watch_config")
+
+    def test_cycle_transition_renotify_recovery(self):
+        msg, st = dw.decide_blind(True, {}, 1000.0, RENOTIFY, 31 * 60)
+        self.assertIn("BLIND", msg)
+        msg, st = dw.decide_blind(True, st, 1000.0 + 3 * H, RENOTIFY, 3 * H)
+        self.assertIsNone(msg, "no re-notify before 4h")
+        msg, st = dw.decide_blind(True, st, 1000.0 + 4 * H + 1, RENOTIFY, 4 * H)
+        self.assertIn("still", msg)
+        msg, st = dw.decide_blind(False, st, 1000.0 + 5 * H, RENOTIFY, 60)
+        self.assertIn("reading again", msg)
+        msg, st = dw.decide_blind(False, st, 1000.0 + 6 * H, RENOTIFY, 60)
+        self.assertIsNone(msg)
+
+    def test_cannot_tell_is_silent_and_preserves_blind(self):
+        _, st = dw.decide_blind(True, {}, 1000.0, RENOTIFY, 31 * 60)
+        msg, st2 = dw.decide_blind(None, st, 2000.0, RENOTIFY)
+        self.assertIsNone(msg)
+        self.assertTrue(st2["blind"], "cannot-tell is not a recovery")
+
+    def test_the_case_the_view_cannot_see(self):
+        # Writer stopped 40 min ago: the view still holds the 40-min-old reading -> "OK",
+        # so the level machine is silent; the blind machine is what pages.
+        msg, _ = dw.decide("OK", _row("OK", free=11.0), {}, 1000.0, RENOTIFY)
+        self.assertIsNone(msg)
+        self.assertTrue(dw.blind_verdict(60, 40 * 60))
+
+
+class HonestSendTest(unittest.TestCase):
+    """F-004: a message counts as sent only when Telegram accepted it."""
+
+    def setUp(self):
+        self._orig = dw._notifier
+
+    def tearDown(self):
+        dw._notifier = self._orig
+
+    def _fake(self, configured, raw):
+        class N:
+            pass
+        n = N()
+        n._configured = lambda: configured
+        n._send_raw = lambda text: raw
+        dw._notifier = lambda: n
+
+    def test_unconfigured_is_not_sent(self):
+        self._fake(False, True)
+        self.assertFalse(dw.send("x"))
+
+    def test_failed_post_is_not_sent(self):
+        self._fake(True, False)
+        self.assertFalse(dw.send("x"))
+
+    def test_accepted_post_is_sent(self):
+        self._fake(True, True)
+        self.assertTrue(dw.send("x"))
+
+    def test_main_does_not_advance_state_on_failed_send(self):
+        import json, os, tempfile
+        self._fake(True, False)
+        d = tempfile.mkdtemp()
+        orig_state, orig_force = dw.STATE_FILE, dw.FORCE
+        dw.STATE_FILE = os.path.join(d, "s.json")
+        dw.FORCE = "WARN"
+        try:
+            dw.main()
+            with open(dw.STATE_FILE) as fh:
+                st = json.load(fh)
+            self.assertNotEqual(st.get("state"), "WARN",
+                                "undelivered WARN must not be recorded, or it goes quiet 4h")
+            self._fake(True, True)
+            dw.main()
+            with open(dw.STATE_FILE) as fh:
+                self.assertEqual(json.load(fh)["state"], "WARN")
+        finally:
+            dw.STATE_FILE, dw.FORCE = orig_state, orig_force
 
 
 # ── 74-B rule mirror, kept identical to v_disk_health.sql ─────────────────────
