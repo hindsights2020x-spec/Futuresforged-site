@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the FF health heartbeat every 15s
+
+[Timer]
+OnBootSec=30
+OnUnitActiveSec=15
+AccuracySec=1s
+Unit=ff-heartbeat.service
+
+[Install]
+WantedBy=timers.target

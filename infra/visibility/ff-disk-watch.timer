@@ -1,0 +1,11 @@
+[Unit]
+Description=Evaluate FF disk health every 5 min (messages only on transition / 4h re-notify / recovery)
+
+[Timer]
+OnBootSec=120
+OnUnitActiveSec=300
+AccuracySec=10s
+Unit=ff-disk-watch.service
+
+[Install]
+WantedBy=timers.target

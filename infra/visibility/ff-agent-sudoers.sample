@@ -1,0 +1,17 @@
+# Rec #3 — restricted sudoers for an off-box agent user on the ff-bot box.
+# Install to /etc/sudoers.d/ff-agent, then VALIDATE:  sudo visudo -cf /etc/sudoers.d/ff-agent
+# Replace `ffagent` with the real restricted username and the unit names with yours.
+# Read-mostly: run the (read-only) verify script, restart/status the two services, list ports.
+# It deliberately grants NO shell, NO editor, NO arbitrary command.
+
+Cmnd_Alias FF_VERIFY  = /usr/bin/bash /home/tom/futuresforged-bot/r09_verify.sh, \
+                        /bin/bash /home/tom/futuresforged-bot/r09_verify.sh
+Cmnd_Alias FF_SERVICE = /usr/bin/systemctl restart ff-copier, \
+                        /usr/bin/systemctl restart ff-bot, \
+                        /usr/bin/systemctl status ff-copier, \
+                        /usr/bin/systemctl status ff-bot, \
+                        /usr/bin/systemctl is-active ff-copier, \
+                        /usr/bin/systemctl is-active ff-bot
+Cmnd_Alias FF_PORTS   = /usr/bin/ss -ltnp
+
+ffagent ALL=(root) NOPASSWD: FF_VERIFY, FF_SERVICE, FF_PORTS

@@ -1,0 +1,40 @@
+--- /tmp/cs_orig.html	2026-07-14 16:07:16.068616587 +0000
++++ client_chart_studio.html	2026-07-14 16:05:46.732101750 +0000
+@@ -643,7 +643,10 @@
+   // every group subscribed to MANUAL (prior behaviour). `direction` is sent so the copier logs it.
+   const routeEl=document.getElementById('route');
+   const route=routeEl?routeEl.value:'';
+-  const payload={side,direction:side,instrument:document.getElementById('instrument').value,
++  // R-09 Issue 1: manual:true is an explicit bypass marker so the server skips get_contracts()
++  // sizing (which forces a 2-contract 1-TP+1-runner minimum) and executes `contracts` exactly.
++  // strategy:'MANUAL' is still sent for the copier's fan-out routing.
++  const payload={side,direction:side,manual:true,instrument:document.getElementById('instrument').value,
+                  contracts:Math.max(1,+qtyEl.value||1),order_type:orderType,strategy:'MANUAL'};
+   if(route) payload.group_id=route;
+   try{
+@@ -742,12 +745,24 @@
+ const l2Wrap=document.getElementById('l2-wrap');
+ async function pollL2(){
+   if(document.getElementById('panel-l2').classList.contains('hidden')) return;
++  var sym=(typeof BOOK_SYM!=='undefined' && BOOK_SYM[chartRoot])||chartRoot;
++  // R-09 Issue 2 (price lag): prefer the bot's LIVE /api/book on :7331 (ORDERFLOW_BASE, via
++  // botFetch). That is one hop from the Rithmic feed — no Supabase relay and no 1-minute
++  // bar-close quantization, which is what made the readout trail the true market price.
++  // Only reachable where the bot origin + session token are present (Tom / same-origin /studio),
++  // so fall back to the Supabase client_l2 edge for license-gated clients or if the bot origin
++  // isn't reachable. renderL2() already expects the same { bids, asks, mid } shape /api/book returns.
++  if(BOT_TOK){
++    try{
++      var rb=await botFetch('/api/book?symbol='+encodeURIComponent(sym));
++      if(rb.ok){ renderL2(await rb.json()); return; }
++    }catch(e){ /* fall through to the edge proxy below */ }
++  }
+   var L2_EDGE="https://osxwkgmjwtdyvqwlfyre.supabase.co/functions/v1/client_l2";
+   var lic=(new URLSearchParams(location.search).get('lic')||localStorage.getItem('ff_license')||'').trim();
+   if(lic){ try{ localStorage.setItem('ff_license', lic); }catch(e){} }
+   if(!lic){ l2Wrap.innerHTML='<div class="offline-note">Activate your license on the dashboard to enable L2</div>'; return; }
+   try{
+-    var sym=(typeof BOOK_SYM!=='undefined' && BOOK_SYM[chartRoot])||chartRoot;
+     var r=await fetch(L2_EDGE+'?key='+encodeURIComponent(lic)+'&symbol='+encodeURIComponent(sym));
+     if(r.status===403){ l2Wrap.innerHTML='<div class="offline-note" style="line-height:1.8">\u{1F512} L2 / ORDER FLOW<br><span style="color:#f0a500">Desk tier — or add for $35/mo</span></div>'; return; }
+     if(!r.ok) throw 0;
