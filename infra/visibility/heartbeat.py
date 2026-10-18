@@ -11,6 +11,7 @@ INSERT to Supabase. Configure via env (see ff-heartbeat.service / EnvironmentFil
   SB_KEY             Supabase service-role key — box env only, NEVER committed (required)
   BOT_DIR            default /home/tom/futuresforged-bot
   COPIER_STATE_URL   default http://localhost:7332/api/state
+  BOT_STATE_URL      default http://localhost:7331/api/state (WO-77-C tier data)
   FIXES_APPLIED      optional comma list, e.g. "R-09-FixA"
 """
 import json, os, re, socket, subprocess, urllib.request
@@ -20,6 +21,7 @@ SB_URL    = os.environ.get("SB_URL", "").rstrip("/")
 SB_KEY    = os.environ.get("SB_KEY", "")
 BOT_DIR   = os.environ.get("BOT_DIR", "/home/tom/futuresforged-bot")
 STATE_URL = os.environ.get("COPIER_STATE_URL", "http://localhost:7332/api/state")
+BOT_STATE_URL = os.environ.get("BOT_STATE_URL", "http://localhost:7331/api/state")
 FIXES     = [s.strip() for s in os.environ.get("FIXES_APPLIED", "").split(",") if s.strip()]
 PORTS     = {"bot": 7331, "copier": 7332}
 
@@ -60,6 +62,22 @@ def open_positions():
         return None
 
 
+def bot_tier_data():
+    """Fetch tier + feed status from bot /api/state (WO-77-C)."""
+    try:
+        with urllib.request.urlopen(BOT_STATE_URL, timeout=2) as r:
+            d = json.loads(r.read().decode())
+        return {
+            "data_tier": d.get("current_tier"),
+            "tier_name": d.get("tier_name"),
+            "feed_rithmic": d.get("feed_status", {}).get("rithmic"),
+            "feed_l2": d.get("feed_status", {}).get("l2_live"),
+            "feed_nt": d.get("feed_status", {}).get("nt_fallback"),
+        }
+    except Exception:
+        return {}
+
+
 def insert(rows):
     if not (SB_URL and SB_KEY):
         raise SystemExit("SB_URL / SB_KEY not set — see ff-heartbeat.service EnvironmentFile")
@@ -74,19 +92,28 @@ def insert(rows):
 
 def main():
     ts, sha, pos = datetime.now(timezone.utc).isoformat(), git_sha(), open_positions()
+    tier_data = bot_tier_data()
+
     rows = []
     for name, port in PORTS.items():
         up = port_up(port)
-        rows.append({
+        row = {
             "ts": ts, "service": name, "port": port, "up": up,
             "pid": pid_on_port(port) if up else None,
             "git_sha": sha,
             "open_positions": pos if name == "copier" else None,
             "fixes_applied": FIXES or None,
-        })
+        }
+        # Add tier data to bot service row (WO-77-C)
+        if name == "bot" and tier_data:
+            row.update(tier_data)
+        rows.append(row)
+
     insert(rows)
-    print(ts, {r["service"]: r["up"] for r in rows}, "sha", sha, "pos", pos)
+    print(ts, {r["service"]: r["up"] for r in rows}, "sha", sha, "pos", pos,
+          "tier", tier_data.get("data_tier"))
 
 
 if __name__ == "__main__":
     main()
+
