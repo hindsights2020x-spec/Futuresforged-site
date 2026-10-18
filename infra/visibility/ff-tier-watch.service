@@ -1,0 +1,17 @@
+[Unit]
+Description=FuturesForged tier watcher — monitor data tier and alert @DDHealthbot
+After=network.target ff-bot.service
+Wants=ff-bot.service
+
+[Service]
+Type=oneshot
+User=tom
+WorkingDirectory=/home/tom/futuresforged-bot
+EnvironmentFile=/etc/ff/heartbeat.env
+ExecStart=/usr/bin/python3 /home/tom/futuresforged-bot/tier_watch.py
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ff-tier-watch
+
+[Install]
+WantedBy=multi-user.target

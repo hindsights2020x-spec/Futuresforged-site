@@ -1,0 +1,13 @@
+[Unit]
+Description=Run tier watcher every 5 minutes
+Requires=ff-tier-watch.service
+Documentation=file:///home/tom/futuresforged-bot/WO_77_77C_TIER_VISIBILITY_ALERTS.md
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+AccuracySec=1s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
